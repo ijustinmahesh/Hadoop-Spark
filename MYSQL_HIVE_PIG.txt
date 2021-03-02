@@ -1,0 +1,50 @@
+--Comparision of similar tasks between Hive,pig and MYSQL
+Extract Top 3 Sales 
+-->MYSQL
+-->Hive
+-->pig
+
+
+mysql> select category_id,category_name,count(order_item_order_id) 
+from categories c inner join products p on (p.product_category_id=c.category_id)  
+inner join order_items o on (o.order_item_product_id=p.product_id)
+ group by  category_id,category_name order by 3 desc limit 3;
++-------------+-----------------+----------------------+
+| category_id | category_name   | count(order_item_id) |
++-------------+-----------------+----------------------+
+|          17 | Cleats          |                24551 |
+|          18 | Men's Footwear  |                22246 |
+|          24 | Women's Apparel |                21035 |
++-------------+-----------------+----------------------+
+
+
+
+select category_id,category_name,count(order_item_order_id) as totalordercnt
+from categories c left join product p on (p.product_category_id=c.category_id)    
+left join order_items o on (o.order_item_product_id=p.product_id)
+group by  category_id,category_name 
+order by totalordercnt  desc limit 3;
++--------------+------------------+------+----------------+--+
+| category_id  |  category_name   | rnk  | totalordercnt  |
++--------------+------------------+------+----------------+--+
+| 17           | Cleats           | 1    | 24551          |
+| 18           | Men's Footwear   | 2    | 22246          |
+| 24           | Women's Apparel  | 3    | 21035          |
++--------------+------------------+------+----------------+--+
+
+
+
+product = LOAD '/user/hive/warehouse/product/' using PigStorage (',') as (product_id:int,product_category_id:int,product_name:chararray);
+category = Load '/user/cloudera/stage/caqtegories'  using PigStorage (',') as (category_id:int,category_department_id:int,category_name:chararray);
+orderItems = load  '/user/hive/warehouse/order_items' using PigStorage (',') as (order_item_id:int,order_item_order_id:int,order_item_product_id:int,order_item_quantity:int,order_item_subtotal:int,order_item_product_price:int);
+category_product = Join category by category_id,product by product_category_id;
+category_product_order = Join orderItems  by order_item_product_id,category_product by product_id ;
+agg_sales_grp = group category_product_order by (category_id,category_name);
+agg_sales = foreach  agg_sales_grp generate group ,  SUM(category_product_order.order_item_quantity) as soldqty,COUNT(category_product_order.order_item_order_id) as totalordercnt;
+agg_sale_desc = order agg_sales by totalordercnt  desc;
+agg_sale_top3 = limit  agg_sale_desc  3;
+dump agg_sale_top3;
+2021-03-02 07:07:06,435 [main] INFO  org.apache.pig.backend.hadoop.executionengine.util.MapRedUtil - Total input paths to process : 1
+((17,Cleats),73734,24551)
+((18,Men's Footwear),22246,22246)
+((24,Women's Apparel),62956,21035)
